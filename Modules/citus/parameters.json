@@ -1,0 +1,66 @@
+{
+    "administratorLogin": {
+        "value": "${var.administrator_login}"
+    },
+    "administratorLoginPassword": {
+        "value": "${random_password.citus_pswd.result}"
+    },
+    "location": {
+        "value": "westeurope"
+    },
+    "serverGroup": {
+        "value": "${var.server_group}"
+    },
+    "coordinatorVcores": {
+        "value": 4
+    },
+    "coordinatorStorageSizeMB": {
+        "value": 524288
+    },
+    "workerVcores": {
+        "value": 4
+    },
+    "workerStorageSizeMB": {
+        "value": 524288
+    },
+    "numWorkers": {
+        "value": 2
+    },
+    "serverGroupTags": {
+        "value": {
+            "owner": "grmnext"
+        }
+    },
+    "workerNodeTags": {
+        "value": {
+            "owner": "grmnext"
+        }
+    },
+    "coordinatorNodeTags": {
+        "value": {
+            "owner": "grmnext"
+        }
+    },
+    "firewallRules": {
+        "value": {
+            "rules": [
+                {
+                    "name": "gf-vpn",
+                    "startIPAddress": "193.3.10.0",
+                    "endIPAddress": "193.3.10.255"
+                },
+                {
+                    "name": "vmssagentspool",
+                    "startIPAddress": "20.50.254.192",
+                    "endIPAddress": "20.50.254.207"
+                }
+            ]
+        }
+    },
+    "standbyCount": {
+        "value": 0
+    },
+    "vnetData": {
+        "value": {}
+    }
+}

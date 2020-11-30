@@ -1,0 +1,44 @@
+parameters:
+  environment: '' # environment identifier
+  azureSubscription: '' # name of Azure DevOps service connection
+  subscriptionName: '' # name of subscription, where the resources should be deployed
+  runPgScripts: false
+  citusPassword: ''
+  citusHostName: ''
+  citusDatabase: 'citus'
+  citusUsername: ''
+
+jobs:
+- job: WWNCInfrastructure
+  timeoutInMinutes: 150
+  container: toolkit    
+  steps:
+    - task: AzureCLI@2
+      displayName: 'Terragrunt plan - ${{ parameters.environment }}'
+      inputs:
+        azureSubscription: '${{ parameters.azureSubscription }}'
+        ScriptType: 'pscore'
+        scriptLocation: 'scriptPath'
+        scriptPath: 'plan.ps1'
+        arguments: '${{ parameters.environment }} ${{ parameters.subscriptionName }}'
+        addSpnToEnvironment: true
+    - task: AzureCLI@2
+      displayName: 'Terragrunt apply - ${{ parameters.environment }}'
+      condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+      inputs:
+        azureSubscription: '${{ parameters.azureSubscription }}'
+        ScriptType: 'pscore'
+        scriptLocation: 'scriptPath'
+        scriptPath: 'apply.ps1'
+        arguments: '${{ parameters.environment }} ${{ parameters.subscriptionName }}'
+        addSpnToEnvironment: true
+    - task: AzureCLI@2
+      displayName: 'Run citus pg scripts - ${{ parameters.environment }}'
+      condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/master'))
+      inputs:
+        azureSubscription: '${{ parameters.azureSubscription }}'
+        ScriptType: 'pscore'
+        scriptLocation: 'scriptPath'
+        scriptPath: 'pgsql.ps1'
+        arguments: '${{ parameters.citusDatabase }} ${{ parameters.citusHostName }} ${{ parameters.citusUsername }} ${{ parameters.citusPassword }}'
+        addSpnToEnvironment: true    

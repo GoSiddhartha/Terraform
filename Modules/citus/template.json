@@ -1,0 +1,172 @@
+{
+    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "administratorLogin": {
+            "type": "string"
+        },
+        "administratorLoginPassword": {
+            "type": "securestring"
+        },
+        "serverGroup": {
+            "type": "string"
+        },
+        "coordinatorVcores": {
+            "type": "int",
+            "defaultValue": 4
+        },
+        "coordinatorStorageSizeMB": {
+            "type": "int",
+            "defaultValue": 524288
+        },
+        "workerVcores": {
+            "type": "int",
+            "defaultValue": 4
+        },
+        "workerStorageSizeMB": {
+            "type": "int",
+            "defaultValue": 524288
+        },
+        "numWorkers": {
+            "type": "int",
+            "defaultValue": 2
+        },
+        "standbyCount": {
+            "type": "int",
+            "defaultValue": 0
+        },
+        "location": {
+            "type": "string"
+        }
+
+    },
+    "variables": {
+        "api": "2018-03-29-privatepreview",
+        "tags": {
+            "Name": "grmnext-infrastructure",
+            "Env": "d",
+            "owner": "grmnext"
+        },
+        "firewallRules": {
+            "rules": [
+                {
+                    "name": "gf-vpn",
+                    "startIPAddress": "193.3.10.0",
+                    "endIPAddress": "193.3.10.255"
+                },
+                {
+                    "name": "vmssagentspool",
+                    "startIPAddress": "20.50.254.192",
+                    "endIPAddress": "20.50.254.207"
+                }
+            ]
+        },
+        "vnetData": {},
+        "serverGroupName": "[parameters('serverGroup')]",
+        "coordName": "[concat(parameters('serverGroup'), '-c')]",
+        "serverSuffix": "[parameters('serverGroup')]",
+        "publicIpAddressRequested": "[if(empty(variables('vnetData')), bool('true'), bool('false'))]",
+        "vnetDataSet": "[if(empty(variables('vnetData')), json('{ \"vnetId\": \"\", \"vnetName\": \"\", \"vnetResourceGroup\": \"\", \"subnetName\": \"\" }'), variables('vnetData'))]",
+        "finalVnetData": "[json(concat('{ \"DelegatedVnetID\": \"', variables('vnetDataSet').vnetId, '\", \"DelegatedVnetName\": \"', variables('vnetDataSet').vnetName, '\", \"DelegatedVnetResourceGroup\": \"', variables('vnetDataSet').vnetResourceGroup, '\", \"DelegatedSubnetName\": \"', variables('vnetDataSet').subnetName, '\"}'))]"
+    },
+    "resources": [
+        {
+            "apiVersion": "[variables('api')]",
+            "location": "[parameters('location')]",
+            "name": "[variables('serverGroupName')]",
+            "tags": "[variables('tags')]",
+            "type": "Microsoft.DBforPostgreSQL/serverGroups",
+            "Properties": {
+                "Mode": "citus"
+            }
+        },
+        {
+            "apiVersion": "[variables('api')]",
+            "location": "[parameters('location')]",
+            "name": "[variables('coordName')]",
+            "properties": {
+                "version": "11",
+                "Role": "Coordinator",
+                "administratorLogin": "[parameters('administratorLogin')]",
+                "administratorLoginPassword": "[parameters('administratorLoginPassword')]",
+                "publicIpAddressRequested": "[variables('publicIpAddressRequested')]",
+                "serverEdition": "GeneralPurpose",
+                "VCores": "[parameters('coordinatorVcores')]",
+                "storageQuotaInMb": "[parameters('coordinatorStorageSizeMB')]",
+                "serverGroupName": "[variables('serverGroupName')]",
+                "standbyCount": "[parameters('standbyCount')]",
+                "VnetInjArgs": "[if(empty(variables('vnetData')), json('null'), variables('finalVnetData'))]"
+            },
+            "tags": "[variables('tags')]",
+            "type": "Microsoft.DBforPostgreSQL/serversv2",
+            "dependsOn": [
+                "[concat('Microsoft.DBforPostgreSQL/serverGroups/', variables('serverGroupName'))]"
+            ]
+        },
+        {
+            "condition": "[greater(length(variables('firewallRules')), 0)]",
+            "type": "Microsoft.Resources/deployments",
+            "apiVersion": "2019-08-01",
+            "name": "[concat('firewallRules-', copyIndex())]",
+            "copy": {
+                "count": "[if(greater(length(variables('firewallRules')), 0), length(variables('firewallRules')), 1)]",
+                "mode": "Serial",
+                "name": "firewallRulesIterator"
+            },
+            "dependsOn": [
+                "[concat('Microsoft.DBforPostgreSQL/serversv2/', variables('coordName'))]"
+            ],
+            "properties": {
+                "mode": "Incremental",
+                "template": {
+                    "$schema": "http://schema.management.azure.com/schemas/2014-04-01-preview/deploymentTemplate.json#",
+                    "contentVersion": "1.0.0.0",
+                    "resources": [
+                        {
+                            "type": "Microsoft.DBforPostgreSQL/serversv2/firewallRules",
+                            "name": "[concat(variables('coordName'),'/',variables('firewallRules')[copyIndex()].name)]",
+                            "apiVersion": "[variables('api')]",
+                            "properties": {
+                                "StartIpAddress": "[variables('firewallRules')[copyIndex()].startIPAddress]",
+                                "EndIpAddress": "[variables('firewallRules')[copyIndex()].endIPAddress]"
+                            }
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "apiVersion": "[variables('api')]",
+            "location": "[parameters('location')]",
+            "copy": {
+                "name": "worker",
+                "count": "[parameters('numWorkers')]"
+            },
+            "name": "[concat(variables('serverSuffix'), '-', 'w', copyIndex())]",
+            "properties": {
+                "version": "11",
+                "Role": "Worker",
+                "administratorLogin": "citus",
+                "administratorLoginPassword": "[parameters('administratorLoginPassword')]",
+                "publicIpAddressRequested": "false",
+                "serverEdition": "MemoryOptimized",
+                "VCores": "[parameters('workerVcores')]",
+                "storageQuotaInMb": "[parameters('workerStorageSizeMB')]",
+                "serverGroupName": "[variables('serverGroupName')]",
+                "standbyCount": "[parameters('standbyCount')]",
+                "VnetInjArgs": "[if(empty(variables('vnetData')), json('null'), variables('finalVnetData'))]"
+            },
+            "tags": "[variables('tags')]",
+            "type": "Microsoft.DBforPostgreSQL/serversv2",
+            "dependsOn": [
+                "[concat('Microsoft.DBforPostgreSQL/serverGroups/', variables('serverGroupName'))]"
+            ]
+        }
+    ],
+    "outputs": {
+        "coordinator hostname": {
+            "type": "string",
+            "value": "[reference(concat('Microsoft.DBforPostgreSQL/serversv2/', variables('coordName')), variables('api')).fullyQualifiedDomainName]"
+        }
+    }
+}

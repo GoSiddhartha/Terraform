@@ -1,0 +1,53 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+variables:
+- group: grmnext_pipeline
+
+resources:
+  containers:
+    - container: toolkit
+      image: gfacrcorev2dazwe.azurecr.io/toolkit:1.8.9
+      endpoint: GiCV2-ACR-D
+
+pool: vmssagents
+
+stages:
+- stage: Dev
+  jobs:
+    - template: jobs.yaml
+      parameters:
+        environment: 'd' # environment identifier
+        azureSubscription: 'GiC-Playground2' # name of Azure DevOps service connection
+        subscriptionName: 'GiCv2-D' # name of subscription, where the resources should be deployed
+        citusPassword: $(citus_password_d)
+        citusHostName: $(citus_host_d)
+        citusDatabase: 'citus'
+        citusUsername: $(citus_username_d)
+
+# - stage: Test
+#   dependsOn: Dev
+#   jobs:
+#     - template: jobs.yaml
+#       parameters:
+#         Environment: 't'
+#         Subscription: 'Gicv2-D'
+
+# - stage: QA
+#   dependsOn: Test
+#   jobs:
+#     - template: jobs.yaml
+#       parameters:
+#         Environment: 'q'
+#         Subscription: 'Gicv2-D'
+
+# - stage: Prod
+#   dependsOn: QA
+#   condition: eq(variables['build.sourceBranch'], 'refs/heads/master')
+#   jobs:
+#     - template: jobs.yaml
+#       parameters:
+#         Environment: 'p'
+#         Subscription: 'Gicv2-D'
