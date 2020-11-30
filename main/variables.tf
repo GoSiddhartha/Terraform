@@ -124,24 +124,11 @@ variable "num_workers" {
 }
 
 variable "firewall_rules" {
-  type = object({
-    rules = list(map(string))
-  })
-
-  default = {
-    rules = [
-      {
-        "name"           = "gf-vpn",
-        "startIPAddress" = "193.3.10.0",
-        "endIPAddress"   = "193.3.10.255",
-      },
-      {
-        "name"           = "vmssagentspool",
-        "startIPAddress" = "20.50.254.192",
-        "endIPAddress"   = "20.50.254.207",
-      }
-    ]
-  }
+  type = list(object({
+    name        = string
+    start_ip    = string
+    end_ip      = string
+  }))
 }
 
 variable "standby_count" {
